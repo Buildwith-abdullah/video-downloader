@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Social Media Video Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 min-h-screen flex items-center justify-center">
+  <div class="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-lg text-center">
+    <h1 class="text-3xl font-bold mb-6 text-gray-800">🎥 Social Media Video Downloader</h1>
+
+    <!-- Video Preview -->
+    <div id="preview-container" class="hidden mb-4">
+      <h3 class="text-lg font-semibold mb-2">Video Preview</h3>
+      <video id="video-preview" controls width="100%" class="rounded-lg border">
+        <source id="video-source" src="" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    </div>
+
+    <!-- Input + Buttons -->
+    <input id="urlInput" type="text" placeholder="Paste video link here"
+      class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 mb-4" />
+
+    <button id="getFormatsBtn"
+      class="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-2 rounded-lg mb-4 hover:opacity-90">
+      Get Formats
+    </button>
+
+    <select id="formatSelect"
+      class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 mb-4 hidden"></select>
+
+    <button id="downloadBtn"
+      class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 rounded-lg hover:opacity-90 hidden">
+      ⬇ Download
+    </button>
+
+    <p id="status" class="mt-4 text-sm text-gray-600"></p>
+  </div>
+
+  <script>
+    const BASE_URL = "http://127.0.0.1:8000";
+    let availableFormats = [];
+
+    const getFormatsBtn = document.getElementById("getFormatsBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const urlInput = document.getElementById("urlInput");
+    const formatSelect = document.getElementById("formatSelect");
+    const status = document.getElementById("status");
+
+    function setStatus(text, isError = false) {
+      status.textContent = text;
+      status.style.color = isError ? "crimson" : "#374151";
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return "Unknown size";
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(2) + " " + sizes[i];
+    }
+
+    getFormatsBtn.addEventListener("click", fetchFormats);
+    downloadBtn.addEventListener("click", downloadVideo);
+
+    async function fetchFormats() {
+      const url = urlInput.value.trim();
+      if (!url) return alert("Please enter a URL");
+
+      setStatus("Fetching formats...");
+      formatSelect.innerHTML = "";
+      formatSelect.classList.add("hidden");
+      downloadBtn.classList.add("hidden");
+      document.getElementById("preview-container").classList.add("hidden");
+
+      try {
+        const resp = await fetch(`${BASE_URL}/formats?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) throw new Error("Failed to fetch formats");
+        const data = await resp.json();
+        availableFormats = data.formats || [];
+
+        if (!availableFormats.length) {
+          setStatus("No MP4 formats found", true);
+          return;
+        }
+
+        // ✅ Preview first playable format
+        const previewFormat = availableFormats.find(f => f.acodec !== "none");
+        if (previewFormat) {
+          document.getElementById("video-source").src = previewFormat.direct_url;
+          document.getElementById("preview-container").classList.remove("hidden");
+          document.getElementById("video-preview").load();
+        }
+
+        // ✅ Dropdown list
+        availableFormats.forEach(f => {
+          const opt = document.createElement("option");
+          opt.value = f.format_id;
+          const sizeText = f.filesize ? formatBytes(f.filesize) : (f.resolution === "Highest Quality" ? "Highest Quality" : "Unknown size");
+          opt.textContent = `${f.resolution} — ${sizeText}`;
+          formatSelect.appendChild(opt);
+        });
+
+        formatSelect.classList.remove("hidden");
+        downloadBtn.classList.remove("hidden");
+        setStatus(`Found ${availableFormats.length} formats for "${data.title}"`);
+
+      } catch (err) {
+        console.error(err);
+        setStatus("Error fetching formats: " + err.message, true);
+      }
+    }
+
+    function downloadVideo() {
+      const url = urlInput.value.trim();
+      const selected = availableFormats.find(f => f.format_id === formatSelect.value);
+      if (!url || !selected) return alert("Select a format");
+
+      // ✅ backend handles proper file saving
+      window.location.href = `${BASE_URL}/download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(selected.format_id)}`;
+    }
+  </script>
+</body>
+</html>
