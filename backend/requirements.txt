@@ -1,4 +1,6 @@
-Flask
-flask-cors
+fastapi
+uvicorn
 yt-dlp
 requests
+flask
+flask-cors
